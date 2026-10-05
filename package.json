@@ -1,0 +1,8 @@
+{
+  "name": "evaa-engine",
+  "version": "1.0.0",
+  "description": "Tiny demo EVAA processing engine",
+  "type": "module",
+  "main": "index.js",
+  "exports": "./index.js"
+}
