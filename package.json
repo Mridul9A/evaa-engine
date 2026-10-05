@@ -1,8 +1,15 @@
 {
   "name": "evaa-engine",
-  "version": "1.0.0",
-  "description": "Tiny demo EVAA processing engine",
+  "version": "0.1.0",
+  "description": "EVAA event-camera processing engine",
   "type": "module",
   "main": "index.js",
-  "exports": "./index.js"
+  "exports": "./index.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "multer": "^2.0.2"
+  }
 }
