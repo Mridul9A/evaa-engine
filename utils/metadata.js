@@ -1,38 +1,22 @@
-export function buildMetadata(
-  events,
-  format,
-  options = {}
-) {
-  const timestamps = events.map(
-    event => event.t
-  );
+export function buildMetadata(events, format, options = {}) {
+  let minT = Infinity;
+  let maxT = -Infinity;
+  let maxX = -1;
+  let maxY = -1;
 
-  const minTimestamp =
-    Math.min(...timestamps);
-
-  const maxTimestamp =
-    Math.max(...timestamps);
+  for (const e of events) {
+    if (e.t < minT) minT = e.t;
+    if (e.t > maxT) maxT = e.t;
+    if (e.x > maxX) maxX = e.x;
+    if (e.y > maxY) maxY = e.y;
+  }
 
   return {
     format,
-
-    width:
-      options.width ?? null,
-
-    height:
-      options.height ?? null,
-
-    eventCount:
-      events.length,
-
-    durationUs:
-      maxTimestamp - minTimestamp,
-
-    eventModel: [
-      't',
-      'x',
-      'y',
-      'p'
-    ]
+    width: options.width ?? maxX + 1,
+    height: options.height ?? maxY + 1,
+    eventCount: events.length,
+    durationUs: maxT - minT,
+    eventModel: ['t', 'x', 'y', 'p']
   };
 }
