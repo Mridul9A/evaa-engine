@@ -207,6 +207,16 @@ export async function parseNpy(filePath) {
   const descrRaw =
     descrMatch[1].trim();
 
+  const fortranMatch =
+    headerText.match(
+      /['"]fortran_order['"]\s*:\s*(True|False)/
+    );
+
+  const fortranOrder =
+    fortranMatch
+      ? fortranMatch[1] === 'True'
+      : false;
+
   const dataBuffer =
     buffer.buffer.slice(
       buffer.byteOffset + dataOffset,
@@ -436,110 +446,45 @@ export async function parseNpy(filePath) {
       elementSize
     );
 
-  // N x 4
+  // N x 4 or 4 x N
   if (shape.length === 2) {
+    const rowsCount = shape[0];
+    const colsCount = shape[1];
 
-    const rowsCount =
-      shape[0];
+    // Position of element (row, col) in the file
+    const at = (row, col) =>
+      fortranOrder
+        ? col * rowsCount + row
+        : row * colsCount + col;
 
-    const colsCount =
-      shape[1];
+    const val = (row, col) =>
+      readValue(
+        view,
+        at(row, col) * elementSize,
+        typeInfo
+      );
 
     if (colsCount >= 4) {
-
-      for (
-        let i = 0;
-        i < rowsCount;
-        i++
-      ) {
-        const index =
-          i * colsCount;
-
+      for (let i = 0; i < rowsCount; i++) {
         rows.push({
-          t: readValue(
-            view,
-            index * elementSize,
-            typeInfo
-          ),
-
-          x: Math.floor(
-            readValue(
-              view,
-              (index + 1) *
-                elementSize,
-              typeInfo
-            )
-          ),
-
-          y: Math.floor(
-            readValue(
-              view,
-              (index + 2) *
-                elementSize,
-              typeInfo
-            )
-          ),
-
-          p: Math.floor(
-            readValue(
-              view,
-              (index + 3) *
-                elementSize,
-              typeInfo
-            )
-          )
+          t: val(i, 0),
+          x: Math.floor(val(i, 1)),
+          y: Math.floor(val(i, 2)),
+          p: Math.floor(val(i, 3))
         });
       }
-
-    // 4 x N
     } else if (rowsCount >= 4) {
-
-      const N =
-        colsCount;
-
-      for (
-        let i = 0;
-        i < N;
-        i++
-      ) {
+      for (let i = 0; i < colsCount; i++) {
         rows.push({
-          t: readValue(
-            view,
-            i * elementSize,
-            typeInfo
-          ),
-
-          x: Math.floor(
-            readValue(
-              view,
-              (N + i) *
-                elementSize,
-              typeInfo
-            )
-          ),
-
-          y: Math.floor(
-            readValue(
-              view,
-              (2 * N + i) *
-                elementSize,
-              typeInfo
-            )
-          ),
-
-          p: Math.floor(
-            readValue(
-              view,
-              (3 * N + i) *
-                elementSize,
-              typeInfo
-            )
-          )
+          t: val(0, i),
+          x: Math.floor(val(1, i)),
+          y: Math.floor(val(2, i)),
+          p: Math.floor(val(3, i))
         });
       }
     }
 
-  // Flat array: [t,x,y,p,t,x,y,p,...]
+    // Flat array: [t,x,y,p,t,x,y,p,...]
   } else if (shape.length === 1) {
 
     const N =
