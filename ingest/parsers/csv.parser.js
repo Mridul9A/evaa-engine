@@ -1,28 +1,18 @@
 import fs from 'node:fs/promises';
 
-const COLUMN_MAPPING = {
-  timestamp: 't',
-  time: 't',
-  ts: 't',
-  timestamp_s: 't',
-  t_s: 't',
-
-  pos_x: 'x',
-  coord_x: 'x',
-  channel: 'x',
-  ch: 'x',
-
-  pos_y: 'y',
-  coord_y: 'y',
-  event_id: 'y',
-  duration_ms: 'y',
-
-  polarity: 'p',
-  pol: 'p',
-  event_type: 'p',
-  amplitude: 'p',
-  val: 'p'
+// Accepted header names for each event field.
+// Anything else is rejected, so other tables are never read as events.
+const COLUMN_ALIASES = {
+  t: ['t', 'time', 'timestamp', 'ts', 'timestamp_us', 't_us'],
+  x: ['x', 'pos_x', 'coord_x'],
+  y: ['y', 'pos_y', 'coord_y'],
+  p: ['p', 'pol', 'polarity']
 };
+
+const FIELDS = ['t', 'x', 'y', 'p'];
+
+const clean = (value) =>
+  value.trim().replace(/^["']|["']$/g, '');
 
 export async function parseCsv(filePath) {
   if (!filePath) {
@@ -42,76 +32,65 @@ export async function parseCsv(filePath) {
     throw new Error('CSV file is empty or contains no valid lines');
   }
 
-  // First row
-  const firstRowTokens = lines[0]
-    .split(',')
-    .map((value) => value.trim().replace(/^["']|["']$/g, ''));
+  const firstRow = lines[0].split(',').map(clean);
 
-  // Existing implementation determines header by checking for letters
-  const hasHeader = firstRowTokens.some((token) => /[a-zA-Z]/.test(token));
+  // A first row with any non-numeric value is a header
+  const hasHeader = firstRow.some(
+    (token) => token !== '' && Number.isNaN(Number(token))
+  );
 
-  let headers;
+  let idx;
   let dataLines;
 
   if (hasHeader) {
-    headers = firstRowTokens.map((header) => header.toLowerCase());
+    const names = firstRow.map((name) => name.toLowerCase());
+
+    idx = {};
+    for (const field of FIELDS) {
+      idx[field] = names.findIndex((name) =>
+        COLUMN_ALIASES[field].includes(name)
+      );
+    }
+
+    const missing = FIELDS.filter((field) => idx[field] === -1);
+
+    if (missing.length > 0) {
+      throw new Error(
+        `CSV header must name the columns t, x, y, p. Missing: ${missing.join(', ')}. Found: ${firstRow.join(', ')}`
+      );
+    }
+
     dataLines = lines.slice(1);
   } else {
-    headers = ['t', 'x', 'y', 'p'];
+    if (firstRow.length !== 4) {
+      throw new Error(
+        `No header found. Expected 4 columns (t, x, y, p), found ${firstRow.length}`
+      );
+    }
+
+    idx = { t: 0, x: 1, y: 2, p: 3 };
     dataLines = lines;
   }
-
-  // Convert aliases to standard names
-  let mappedHeaders = headers.map(
-    (header) => COLUMN_MAPPING[header] || header
-  );
-
-  const targetColumns = ['t', 'x', 'y', 'p'];
-
-  const missing = targetColumns.filter(
-    (column) => !mappedHeaders.includes(column)
-  );
-
-  // Existing fallback:
-  // if there are at least 4 columns, assume first 4 are t,x,y,p
-  if (missing.length > 0) {
-    if (mappedHeaders.length >= 4) {
-      for (let i = 0; i < 4; i++) {
-        mappedHeaders[i] = targetColumns[i];
-      }
-    } else {
-      throw new Error('CSV requires at least 4 columns');
-    }
-  }
-
-  const indices = {
-    t: mappedHeaders.indexOf('t'),
-    x: mappedHeaders.indexOf('x'),
-    y: mappedHeaders.indexOf('y'),
-    p: mappedHeaders.indexOf('p')
-  };
 
   const parsedData = [];
 
   for (const line of dataLines) {
-    const tokens = line
-      .split(',')
-      .map((value) => value.trim().replace(/^["']|["']$/g, ''));
+    const tokens = line.split(',').map(clean);
 
     if (tokens.length < 4) {
       continue;
     }
 
-    const t = Number(tokens[indices.t]);
-    const x = Number(tokens[indices.x]);
-    const y = Number(tokens[indices.y]);
-    const p = Number(tokens[indices.p]);
+    const t = Number(tokens[idx.t]);
+    const x = Number(tokens[idx.x]);
+    const y = Number(tokens[idx.y]);
+    const p = Number(tokens[idx.p]);
 
     if (
-      !Number.isNaN(t) &&
-      !Number.isNaN(x) &&
-      !Number.isNaN(y) &&
-      !Number.isNaN(p)
+      Number.isFinite(t) &&
+      Number.isFinite(x) &&
+      Number.isFinite(y) &&
+      Number.isFinite(p)
     ) {
       parsedData.push({
         t,

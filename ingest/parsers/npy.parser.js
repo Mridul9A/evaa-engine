@@ -89,16 +89,6 @@ function findColumn(fields, keywords) {
     }
   }
 
-  for (const keyword of keywords) {
-    const found = fields.find(
-      field => field.name.includes(keyword)
-    );
-
-    if (found) {
-      return found;
-    }
-  }
-
   return null;
 }
 
@@ -302,36 +292,25 @@ export async function parseNpy(filePath) {
       'time',
       'timestamp',
       'timestamp_us',
-      'timestamp_s',
-      't_us',
-      't_s'
+      't_us'
     ];
 
     const xKeywords = [
       'x',
       'pos_x',
-      'loc_x',
-      'col',
-      'column',
-      'x_pos'
+      'coord_x'
     ];
 
     const yKeywords = [
       'y',
       'pos_y',
-      'loc_y',
-      'row',
-      'y_pos'
+      'coord_y'
     ];
 
     const pKeywords = [
       'p',
       'pol',
-      'polarity',
-      'off_on',
-      'type',
-      'p_val',
-      'val'
+      'polarity'
     ];
 
     const colMap = {
@@ -341,28 +320,22 @@ export async function parseNpy(filePath) {
       p: findColumn(fields, pKeywords)
     };
 
-    // Fallback: first four fields
+    // If names are not recognised, accept exactly 4 fields in the
+    // order t, x, y, p. Any other layout is rejected.
     if (
       !colMap.t ||
       !colMap.x ||
       !colMap.y ||
       !colMap.p
     ) {
-      if (fields.length >= 4) {
-        colMap.t =
-          colMap.t || fields[0];
-
-        colMap.x =
-          colMap.x || fields[1];
-
-        colMap.y =
-          colMap.y || fields[2];
-
-        colMap.p =
-          colMap.p || fields[3];
+      if (fields.length === 4) {
+        colMap.t = fields[0];
+        colMap.x = fields[1];
+        colMap.y = fields[2];
+        colMap.p = fields[3];
       } else {
         throw new Error(
-          `Structured record requires at least 4 fields. Found: ${fields
+          `Structured NPY must have fields t, x, y, p (or exactly 4 fields in that order). Found: ${fields
             .map(field => field.name)
             .join(', ')}`
         );
@@ -464,7 +437,7 @@ export async function parseNpy(filePath) {
         typeInfo
       );
 
-    if (colsCount >= 4) {
+    if (colsCount === 4) {
       for (let i = 0; i < rowsCount; i++) {
         rows.push({
           t: val(i, 0),
@@ -473,7 +446,7 @@ export async function parseNpy(filePath) {
           p: Math.floor(val(i, 3))
         });
       }
-    } else if (rowsCount >= 4) {
+    } else if (rowsCount === 4) {
       for (let i = 0; i < colsCount; i++) {
         rows.push({
           t: val(0, i),
@@ -482,10 +455,20 @@ export async function parseNpy(filePath) {
           p: Math.floor(val(3, i))
         });
       }
+    } else {
+      throw new Error(
+        `NPY array has shape (${rowsCount}, ${colsCount}). Expected N x 4 with columns t, x, y, p.`
+      );
     }
 
     // Flat array: [t,x,y,p,t,x,y,p,...]
   } else if (shape.length === 1) {
+
+    if (totalElements % 4 !== 0) {
+      throw new Error(
+        `NPY array has ${totalElements} values, which is not a multiple of 4 (t, x, y, p).`
+      );
+    }
 
     const N =
       Math.floor(

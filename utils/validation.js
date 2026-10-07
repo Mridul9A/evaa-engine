@@ -22,6 +22,12 @@ export function validateEvents(events) {
         'Invalid event. Expected { t, x, y, p }'
       );
     }
+
+    if (event.x < 0 || event.y < 0) {
+      throw new Error(
+        `Invalid event position (${event.x}, ${event.y}). x and y must not be negative.`
+      );
+    }
   }
 
   return true;
