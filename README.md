@@ -1,300 +1,134 @@
-# EVAA Engine
+# EVAA Engine (stand-in)
 
-**EVAA Engine** is the core event-camera data processing engine for **EVAA (Event Vision Analytics)**.
+Event-camera ingestion engine used by the EVAA backend. It reads raw event files, checks them, and writes two standard files: HDF5 and Parquet.
 
-It provides reusable Node.js modules for ingesting event-camera datasets, benchmarking processed data, and generating visualizations.
+> **Status:** this is a stand-in engine for testing the EVAA backend end to end. The production engine comes from the Zoove data team. The backend talks to the engine through one function, `ingest()`, so the real engine can replace this one without backend changes as long as it keeps the contract below.
 
-The engine is designed to be consumed directly by the EVAA backend as a Node.js module, while keeping processing logic separate from the application/API layer.
-
-## Features
-
-- **Ingestion**
-  - Process supported event-camera datasets
-  - Normalize input data into a common representation
-  - Prepare datasets for downstream analysis
-
-- **Benchmarking**
-  - Run dataset benchmarks
-  - Generate performance and data-quality metrics
-
-- **Visualization**
-  - Generate visual representations of event-camera data
-  - Support downstream visualization workflows
-
-## Architecture
-
-```text
-                    EVAA Platform
-                         │
-                         ▼
-                  EVAA Backend
-                         │
-                         ▼
-                  ┌─────────────┐
-                  │ EVAA Engine │
-                  └─────────────┘
-                     │    │    │
-             ┌───────┘    │    └────────┐
-             ▼             ▼             ▼
-          Ingest       Benchmark     Visualize
-             │             │             │
-             └─────────────┴─────────────┘
-                           │
-                           ▼
-                    Processed Dataset
-```
-
-The engine focuses on **data processing and analysis**, while the EVAA backend is responsible for application-level concerns such as authentication, dataset management, storage, APIs, and database operations.
-
-## Installation
-
-Clone the repository:
+## Install
 
 ```bash
-git clone https://github.com/Mridul9A/evaa-engine.git
+npm install github:Mridul9A/evaa-engine#v0.1.0
 ```
 
-Navigate into the project:
+Always install a release tag (`#v0.1.0`), never `#main`.
 
-```bash
-cd evaa-engine
-```
-
-Install dependencies:
-
-```bash
-npm install
-```
+- ES module package (`"type": "module"`).
+- Node 18 or newer. A CommonJS app (like the NestJS backend) can `require()` it on Node 22.12 or newer.
+- Pure JavaScript and WebAssembly. No native builds, no system libraries.
 
 ## Usage
 
-The engine exposes its core functionality through `index.js`.
+```js
+import { ingest } from 'evaa-engine';
 
-```javascript
-import {
-  ingest,
-  benchmark,
-  visualize
-} from "evaa-engine";
+const result = await ingest('./events.csv', './out', {
+  width: 640,   // optional
+  height: 480,  // optional
+});
 ```
 
-### Ingestion
+`ingest(inputPath, outputDir, options)`:
 
-Use `ingest` to process and normalize an event-camera dataset.
+| Argument | Meaning |
+| --- | --- |
+| `inputPath` | Path to the input file. The format comes from the file extension. |
+| `outputDir` | Folder for the output files. Created if missing. |
+| `options.width`, `options.height` | Optional sensor size. If not given, it is inferred from the data (see below). |
 
-```javascript
-import { ingest } from "evaa-engine";
+### Return value
 
-const result = await ingest(inputPath, outputDir, options);
-```
-
-Where:
-
-- `inputPath` — path to the input dataset
-- `outputDir` — directory where processed output should be written
-- `options` — optional processing configuration
-
-Example:
-
-```javascript
-const result = await ingest(
-  "./datasets/sample.h5",
-  "./output/sample",
-  {}
-);
-
-console.log(result);
-```
-
-### Benchmarking
-
-Use `benchmark` to analyze a processed dataset.
-
-```javascript
-import { benchmark } from "evaa-engine";
-
-const result = await benchmark(datasetPath, options);
-
-console.log(result);
-```
-
-### Visualization
-
-Use `visualize` to generate visual representations from processed event data.
-
-```javascript
-import { visualize } from "evaa-engine";
-
-const result = await visualize(datasetPath, options);
-
-console.log(result);
-```
-
-## Supported Data
-
-EVAA is designed to work with event-based vision datasets and related data formats.
-
-The ingestion layer is intended to support formats such as:
-
-- `.aedat4`
-- `.h5`
-- `.hdf5`
-- `.mat`
-- `.parquet`
-- `.zarr`
-- `.csv`
-- `.txt`
-- `.npy`
-
-Additional media and document formats may be supported at the EVAA platform level depending on the processing workflow.
-
-## Event Data Model
-
-Event-camera data is commonly represented using:
-
-```text
-[t, x, y, p]
-```
-
-Where:
-
-| Field | Description |
-|---|---|
-| `t` | Event timestamp |
-| `x` | Pixel X coordinate |
-| `y` | Pixel Y coordinate |
-| `p` | Event polarity |
-
-The ingestion pipeline converts supported input formats into a normalized representation suitable for downstream processing.
-
-## Module Structure
-
-The package currently exposes the following modules:
-
-```text
-evaa-engine/
-│
-├── index.js
-│
-├── ingest/
-│   └── ...
-│
-├── benchmark/
-│   └── benchmark.js
-│
-├── visualize/
-│   └── visualize.js
-│
-├── package.json
-└── README.md
-```
-
-### Public API
-
-The package entry point exports:
-
-```javascript
-export { ingest } from "./ingest/index.js";
-export { benchmark } from "./benchmark/benchmark.js";
-export { visualize } from "./visualize/visualize.js";
-```
-
-This allows the EVAA backend to consume the engine directly without communicating through an HTTP layer.
-
-## Integration with EVAA Backend
-
-The recommended architecture is:
-
-```text
-┌──────────────────┐
-│   EVAA Frontend  │
-└────────┬─────────┘
-         │
-         │ HTTP/API
-         ▼
-┌──────────────────┐
-│   EVAA Backend   │
-│     (NestJS)     │
-└────────┬─────────┘
-         │
-         │ Direct function calls
-         ▼
-┌──────────────────┐
-│   EVAA Engine    │
-│   Node.js Module │
-└────────┬─────────┘
-         │
-         ▼
-┌──────────────────┐
-│ Dataset / Output │
-│    Processing    │
-└──────────────────┘
-```
-
-The engine does **not** need to expose its own HTTP API when it is consumed directly by the EVAA backend.
-
-For example:
-
-```javascript
-import { ingest } from "evaa-engine";
-
-const result = await ingest(
-  inputPath,
-  outputPath,
-  options
-);
-```
-
-An HTTP wrapper or separate processing service can be introduced later if the engine needs to run independently, scale separately, or be deployed as a separate worker/service.
-
-## Package Information
-
-```json
+```js
 {
-  "name": "evaa-engine",
-  "version": "0.1.0",
-  "type": "module",
-  "main": "index.js",
-  "exports": "./index.js"
+  success: true,
+  eventCount: 3769468,
+  metadata: { width, height, eventCount, durationUs },
+  preview: [ { t, x, y, p }, /* first 10 events */ ],
+  files: [
+    { kind: 'HDF5',    path: '<outputDir>/events.h5' },
+    { kind: 'PARQUET', path: '<outputDir>/data.parquet' }
+  ]
 }
 ```
 
-## Development
+`metadata` may carry extra fields. Errors are **thrown** as `Error` with a readable message; `ingest` does not return `success: false`.
 
-Install dependencies:
+## Data model
 
-```bash
-npm install
+Every event is `{ t, x, y, p }`:
+
+| Field | Meaning |
+| --- | --- |
+| `t` | Timestamp in microseconds |
+| `x`, `y` | Pixel coordinates (whole numbers, 0 or more) |
+| `p` | Polarity, 0 or 1 |
+
+Conventions:
+- **Sorting:** events are sorted by `t` (stable sort). If the input was unsorted, `metadata.sortedInput` records that.
+- **Resolution:** `width = max x + 1`, `height = max y + 1`, unless `options.width` / `options.height` are passed. A small slice of a file may not reach the sensor edge, so pass the real size when you know it.
+- **Duration:** `durationUs = max t - min t`.
+
+## Supported input formats
+
+| Extension | Status | Accepted layout |
+| --- | --- | --- |
+| `.csv` | Supported | Header naming `t, x, y, p` (aliases such as `timestamp`, `pol` are accepted), or exactly 4 columns without a header |
+| `.txt` | Supported | Parsed by its own text parser (`ingest/parsers/txt.parser.js`) |
+| `.npy` | Supported | N×4 or 4×N array (`fortran_order` handled), a structured array with fields `t, x, y, p`, or a flat array whose length is a multiple of 4 |
+| `.mat` | Supported | MAT v5 (compressed files too), numeric types incl. uint32, N×4 or 4×N; prefers a variable named `events`. MAT v7.3 and big-endian files are rejected |
+| `.h5`, `.hdf5` | Not implemented yet | Parser is a stub |
+| `.parquet`, `.zarr`, `.aedat4` | Not supported | Throws `Unsupported file format: .<ext>` |
+
+Tables that are not event data (for example a 500×6 array) are rejected with a clear shape error. Negative `x` or `y` and out-of-range values are rejected during validation.
+
+## Output files
+
+| File | Contents |
+| --- | --- |
+| `events.h5` | HDF5 with datasets `/events/t`, `/events/x`, `/events/y`, `/events/p` |
+| `data.parquet` | One Parquet file with columns `t, x, y, p`, 1,000,000 rows per row group |
+
+CSV, MAT and NPY versions of the same events produce identical Parquet output.
+
+## Libraries
+
+| Library | Used for | Notes |
+| --- | --- | --- |
+| `h5wasm` | Writing HDF5 | WebAssembly, no native build |
+| `hyparquet-writer` | Writing Parquet | Pure JavaScript |
+| `node:zlib` | Reading compressed MAT v5 | Built into Node |
+| `express`, `multer` | Demo HTTP server (`npm start`) | Not needed by the backend |
+
+## Performance and limits
+
+- Tested on a 3,769,468-event file (640×480). Peak memory was about **1 GB**, because files are read whole into memory. There is no streaming yet.
+- Run it in a worker with enough memory (2 GB or more for files of that size).
+
+## Not finished
+
+- `.h5` / `.hdf5` input parser
+- `benchmark()`: only parse timing, not real analysis
+- `visualize()`: stub
+- Streaming for very large files
+- Tests and CI
+
+## Project layout
+
+```
+index.js                 exports ingest, benchmark, visualize
+ingest/index.js          parse → validate → metadata → columns → write
+ingest/parser.js         picks a parser from the file extension
+ingest/parsers/          csv, txt, npy, mat, h5 (stub)
+utils/                   metadata, validation, column helpers
+writers/                 hdf5.writer.js, parquet.writer.js
+benchmark/, visualize/   not finished
+server.js                demo HTTP server
+test/                    sample files
 ```
 
-The package uses native ES modules:
+## Versioning
 
-```javascript
-import { ingest } from "evaa-engine";
-```
-
-## Roadmap
-
-Planned improvements may include:
-
-- [ ] Expand supported event-data formats
-- [ ] Standardize ingestion output schema
-- [ ] Add dataset validation
-- [ ] Add event-data quality metrics
-- [ ] Expand benchmarking capabilities
-- [ ] Expand visualization capabilities
-- [ ] Add automated tests
-- [ ] Add TypeScript type definitions
-- [ ] Add comprehensive API documentation
-- [ ] Publish the package to npm
-- [ ] Add CI/CD
-- [ ] Add versioned releases
+Releases are git tags (`v0.1.0`). The `ingest()` contract above is what the backend depends on; change it only with a new tag and a note here.
 
 ## License
 
-License information will be added when the project license is finalized.
-
----
-
-**EVAA Engine**  
-Core processing engine for the EVAA Event Vision Analytics platform.
+To be added.
